@@ -1,0 +1,43 @@
+# ============================================================
+# KUBERNETES - Ingress Nginx
+# Routage HTTP des requêtes externes vers les services internes.
+# Prérequis : nginx-ingress-controller installé dans le cluster.
+# Installation : kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+# ============================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: microservices-ingress
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: microservices.local  # À modifier en production
+    http:
+      paths:
+      # Routes vers le user-service
+      - path: /api/users(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 8000
+      # Routes vers le vote-service
+      - path: /api/votes(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: vote-service
+            port:
+              number: 8001
+      # Routes vers le notification-service
+      - path: /api/notifications(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: notification-service
+            port:
+              number: 8002

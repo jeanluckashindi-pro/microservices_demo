@@ -1,0 +1,18 @@
+# ============================================================
+# KUBERNETES - ConfigMap
+# Variables d'environnement non-secrètes partagées entre les
+# déploiements. Les secrets (mots de passe, clés) sont dans
+# secrets.yaml.
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: microservices-config
+  namespace: default
+data:
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_USER: "postgres"
+  USER_SERVICE_URL: "http://user-service:8000"
+  NOTIFICATION_SERVICE_URL: "http://notification-service:8002"
+  DEBUG: "False"
