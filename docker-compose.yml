@@ -101,11 +101,45 @@ services:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
     volumes:
+      # Stockage dédié de pgAdmin. Il peut être réinitialisé sans toucher aux
+      # données PostgreSQL des applications.
+      - pgadmin_data:/var/lib/pgadmin
       # Enregistre automatiquement le serveur dans pgAdmin Web.
       - ./pgadmin-servers.json:/pgadmin4/servers.json:ro
     depends_on:
       db:
         condition: service_healthy
 
+  # Instance isolée pour le modèle BimaWay : PostGIS et pgvector sont requis
+  # par son schéma métier. Elle ne partage pas les données des microservices.
+  bimaway-db:
+    build: ./bimaway-postgres
+    environment:
+      POSTGRES_DB: bimaway
+      POSTGRES_USER: postgres
+      # En production, définir BIMAWAY_POSTGRES_PASSWORD dans le gestionnaire de secrets.
+      POSTGRES_PASSWORD: ${BIMAWAY_POSTGRES_PASSWORD:-postgres}
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+    ports:
+      - "5433:5432"
+    volumes:
+      - bimaway_data:/var/lib/postgresql/data
+      - "D:/Projets/BimaWay/Doc/bimaway_schema.sql:/import/bimaway_schema.sql:ro"
+      - ./bimaway-postgres/init-bimaway.sh:/docker-entrypoint-initdb.d/10-init-bimaway.sh:ro
+      - ./bimaway-postgres/20-production-hardening.sql:/docker-entrypoint-initdb.d/20-production-hardening.sql:ro
+      - ./bimaway-postgres/30-security-and-partnership.sql:/docker-entrypoint-initdb.d/30-security-and-partnership.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bimaway"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
 volumes:
   postgres_data:
+  bimaway_data:
+  pgadmin_data:
