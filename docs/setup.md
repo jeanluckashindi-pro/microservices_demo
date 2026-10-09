@@ -163,10 +163,18 @@ docker compose --profile debug up
 
 ### Ajouter le serveur PostgreSQL dans pgAdmin
 
+Avec pgAdmin inclus dans Docker, le serveur **Microservices PostgreSQL** est
+ajouté automatiquement. Il suffit d'ouvrir http://localhost:5050 et de se
+connecter avec `admin@admin.com` / `admin`.
+
+Si vous utilisez **pgAdmin Desktop** installé sur Windows, ajoutez le serveur
+avec `localhost` comme hôte (et non `db`) : le port PostgreSQL `5432` est
+maintenant publié par Docker.
+
 1. Cliquer sur **Add New Server**
 2. Onglet **General** → Name : `microservices_db`
 3. Onglet **Connection** :
-   - **Host** : `db`
+   - **Host** : `db` (pgAdmin Web Docker) ou `localhost` (pgAdmin Desktop)
    - **Port** : `5432`
    - **Maintenance database** : `postgres`
    - **Username** : `postgres`

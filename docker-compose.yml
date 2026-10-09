@@ -1,0 +1,111 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    ports:
+      # Permet Ã  pgAdmin Desktop (installÃ© sur Windows) de se connecter Ã  PostgreSQL.
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d users_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # S'exécute aussi si le volume PostgreSQL existait déjà avant l'ajout des
+  # bases votes_db et notifications_db. Les scripts init-db ne tournent qu'à
+  # la toute première initialisation d'un volume.
+  db-init:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "for database in votes_db notifications_db; do
+      psql -h db -U postgres -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = '$$database'\" |
+      grep -q 1 || psql -h db -U postgres -d postgres -c \"CREATE DATABASE $$database\";
+      done"
+
+  user-service:
+    build: ./user_service
+    ports:
+      - "8000:8000"
+    environment:
+      DB_NAME: users_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: db
+      DB_PORT: "5432"
+      SECRET_KEY: user-service-secret-key-change-in-prod
+      DEBUG: "False"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+      gunicorn user_service.wsgi:application --bind 0.0.0.0:8000"
+
+  vote-service:
+    build: ./vote_service
+    ports:
+      - "8001:8001"
+    environment:
+      DB_NAME: votes_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: db
+      DB_PORT: "5432"
+      SECRET_KEY: user-service-secret-key-change-in-prod
+      DEBUG: "False"
+      USER_SERVICE_URL: http://user-service:8000
+      NOTIFICATION_SERVICE_URL: http://notification-service:8002
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+      gunicorn vote_service.wsgi:application --bind 0.0.0.0:8001"
+
+  notification-service:
+    build: ./notification_service
+    ports:
+      - "8002:8002"
+    environment:
+      DB_NAME: notifications_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: db
+      DB_PORT: "5432"
+      SECRET_KEY: user-service-secret-key-change-in-prod
+      DEBUG: "False"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+      gunicorn notification_service.wsgi:application --bind 0.0.0.0:8002"
+
+  pgadmin:
+    image: dpage/pgadmin4
+    profiles: ["debug"]
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    volumes:
+      # Enregistre automatiquement le serveur dans pgAdmin Web.
+      - ./pgadmin-servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
